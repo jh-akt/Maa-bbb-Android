@@ -108,6 +108,16 @@ import com.maaframework.android.model.TaskOptionDescriptor
 import com.maaframework.android.model.TaskOptionType
 import com.maaframework.android.preview.DefaultDisplayConfig
 import com.maaframework.android.ui.MaaFullscreenPreviewOverlay as FrameworkFullscreenPreviewOverlay
+import com.maaframework.android.ui.MaaHomeAction as FrameworkHomeAction
+import com.maaframework.android.ui.MaaHomeDivider
+import com.maaframework.android.ui.MaaHomeInfo as FrameworkHomeInfo
+import com.maaframework.android.ui.MaaHomePanel as FrameworkHomePanel
+import com.maaframework.android.ui.MaaHomeProgress as FrameworkHomeProgress
+import com.maaframework.android.ui.MaaHomeRepositoryPanel as FrameworkHomeRepositoryPanel
+import com.maaframework.android.ui.MaaHomeResourcePresetPanel as FrameworkHomeResourcePresetPanel
+import com.maaframework.android.ui.MaaHomeService as FrameworkHomeService
+import com.maaframework.android.ui.MaaHomeStatus as FrameworkHomeStatus
+import com.maaframework.android.ui.MaaHomeTone as FrameworkHomeTone
 import com.maaframework.android.ui.MaaPreviewPanel as FrameworkPreviewPanel
 import com.maaframework.android.ui.MaaPreviewSurfaceHost as FrameworkPreviewSurfaceHost
 import com.maaframework.android.ui.MaaRuntimeLogList as FrameworkRuntimeLogList
@@ -179,15 +189,13 @@ fun MaaBbbSampleScreen(
                         MaaBbbTab.Home -> HomeScreen(
                             state = state,
                             visibleTasks = visibleTasks,
-                            selectedTask = selectedTask,
                             onConnect = viewModel::requestRootAndConnect,
                             onPrepare = viewModel::prepareRuntime,
                             onOpenGame = viewModel::startWindowedGame,
-                            onRunTask = viewModel::startSelectedTask,
-                            onRunPreset = viewModel::startSelectedPreset,
-                            onStop = viewModel::stopRun,
                             onExport = viewModel::exportDiagnostics,
-                            onToggleDisplayPower = viewModel::toggleDisplayPower,
+                            onSelectResource = viewModel::selectResource,
+                            onSelectPreset = viewModel::selectPreset,
+                            onRefreshResourceRepository = viewModel::refreshResourceRepository,
                         )
 
                         MaaBbbTab.Tasks -> TasksScreen(
@@ -283,52 +291,118 @@ private fun AppHeader(
 private fun HomeScreen(
     state: MainUiState,
     visibleTasks: List<TaskDescriptor>,
-    selectedTask: TaskDescriptor?,
     onConnect: () -> Unit,
     onPrepare: () -> Unit,
     onOpenGame: () -> Unit,
-    onRunTask: () -> Unit,
-    onRunPreset: () -> Unit,
-    onStop: () -> Unit,
     onExport: () -> Unit,
-    onToggleDisplayPower: () -> Unit,
+    onSelectResource: (String) -> Unit,
+    onSelectPreset: (String) -> Unit,
+    onRefreshResourceRepository: () -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = MaaBbbDesignTokens.Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.sm),
-    ) {
-        item {
-            StatusOverviewCard(
-                state = state,
-                visibleTasks = visibleTasks,
-            )
-        }
-
-        item {
-            QuickActionsCard(
-                state = state,
-                onConnect = onConnect,
-                onPrepare = onPrepare,
-                onOpenGame = onOpenGame,
-                onRunTask = onRunTask,
-                onRunPreset = onRunPreset,
-                onStop = onStop,
-                onExport = onExport,
-                onToggleDisplayPower = onToggleDisplayPower,
-            )
-        }
-
-        selectedTask?.let { task ->
-            item {
-                SelectedTaskCard(task = task)
-            }
-        }
-
-        item {
-            HostDiagnosticsCard(state = state)
-        }
+    val context = LocalContext.current
+    val displayMetrics = context.resources.displayMetrics
+    val screenSizeLabel = "${displayMetrics.widthPixels} × ${displayMetrics.heightPixels}"
+    val resourceSummary = if (visibleTasks.isEmpty()) {
+        "接口资源未加载"
+    } else {
+        "${visibleTasks.size} 个任务 / ${state.catalog.presets.size} 个预设"
     }
+
+    FrameworkHomePanel(
+        overview = buildList {
+            add(FrameworkHomeInfo("屏幕分辨率", screenSizeLabel))
+            add(
+                FrameworkHomeInfo(
+                    label = "接口资源",
+                    value = resourceSummary,
+                    tone = if (visibleTasks.isEmpty()) FrameworkHomeTone.Error else FrameworkHomeTone.Neutral,
+                ),
+            )
+            add(FrameworkHomeInfo("运行阶段", state.runtimeState.phase.displayName()))
+            state.runtimeState.currentTaskId?.takeIf { it.isNotBlank() }?.let { currentTaskId ->
+                add(FrameworkHomeInfo("当前任务", currentTaskId))
+            }
+        },
+        service = FrameworkHomeService(
+            label = "Runtime 服务",
+            value = homeServiceStatusLabel(state),
+            tone = homeServiceTone(state),
+            loading = state.busy && !state.rootConnected,
+        ),
+        statuses = listOf(
+            FrameworkHomeStatus("Root 可用", state.rootReport.available),
+            FrameworkHomeStatus("授权通过", state.rootReport.granted),
+            FrameworkHomeStatus("服务在线", state.rootConnected),
+        ),
+        actions = listOf(
+            FrameworkHomeAction(
+                title = "准备运行时",
+                actionLabel = if (state.runtimeState.runtimePrepared) "已就绪" else "执行",
+                enabled = state.rootConnected && state.resourceRepository.available && !state.busy,
+                onClick = onPrepare,
+            ),
+            FrameworkHomeAction(
+                title = "打开游戏",
+                actionLabel = "打开",
+                enabled = state.rootConnected && !state.busy,
+                onClick = onOpenGame,
+            ),
+            FrameworkHomeAction(
+                title = if (state.rootConnected) "重新连接 Runtime" else "连接 Root / Runtime",
+                actionLabel = if (state.busy && !state.rootConnected) {
+                    "连接中"
+                } else if (state.rootConnected) {
+                    "重连"
+                } else {
+                    "连接"
+                },
+                enabled = !state.busy,
+                onClick = onConnect,
+            ),
+            FrameworkHomeAction(
+                title = "导出诊断包",
+                actionLabel = if (state.runtimeState.lastDiagnosticsPath.isNullOrBlank()) "导出" else "最新",
+                enabled = state.rootConnected && !state.busy,
+                onClick = onExport,
+            ),
+        ),
+        resourceContent = {
+            FrameworkHomeRepositoryPanel(
+                summary = resourceRepositorySummary(state),
+                rootPath = state.resourceRepository.rootPath,
+                error = state.resourceRepository.lastError,
+                progress = state.resourceRepositoryProgress?.let {
+                    FrameworkHomeProgress(
+                        fraction = it.fraction,
+                        label = it.label,
+                    )
+                },
+                action = FrameworkHomeAction(
+                    title = if (state.resourceRepository.available) "更新 GitHub 资源" else "下载 GitHub 资源",
+                    description = if (state.resourceRepositoryUpdating) {
+                        "正在处理 GitHub 资源缓存"
+                    } else {
+                        "首次下载后会缓存在本地，后续按需手动刷新。"
+                    },
+                    actionLabel = if (state.resourceRepositoryUpdating) "处理中" else "执行",
+                    enabled = !state.resourceRepositoryUpdating,
+                    onClick = onRefreshResourceRepository,
+                ),
+            ) {
+                if (state.catalog.resources.isNotEmpty()) {
+                    MaaHomeDivider()
+                    FrameworkHomeResourcePresetPanel(
+                        resources = state.catalog.resources,
+                        selectedResourceId = state.selectedResourceId,
+                        onSelectResource = onSelectResource,
+                        presets = state.catalog.presets,
+                        selectedPresetId = state.selectedPresetId,
+                        onSelectPreset = onSelectPreset,
+                    )
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -1972,6 +2046,25 @@ private fun resourceRepositorySummary(state: MainUiState): String {
         state.resourceRepository.available -> "$repo / $branch / 已就绪"
         state.resourceRepository.lastError.isNullOrBlank() -> "$repo / $branch / 尚未下载"
         else -> "$repo / $branch / 更新失败"
+    }
+}
+
+private fun homeServiceStatusLabel(state: MainUiState): String {
+    return when {
+        state.rootConnected -> "已连接"
+        state.busy -> "连接中"
+        state.rootReport.granted -> "已授权，待握手"
+        state.rootReport.available -> "等待授权"
+        else -> "未检测到 Root"
+    }
+}
+
+private fun homeServiceTone(state: MainUiState): FrameworkHomeTone {
+    return when {
+        state.rootConnected -> FrameworkHomeTone.Positive
+        state.busy -> FrameworkHomeTone.Warning
+        state.rootReport.granted || state.rootReport.available -> FrameworkHomeTone.Warning
+        else -> FrameworkHomeTone.Error
     }
 }
 
