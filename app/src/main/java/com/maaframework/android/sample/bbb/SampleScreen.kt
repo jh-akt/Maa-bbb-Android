@@ -206,6 +206,7 @@ fun MaaBbbSampleScreen(
                             onSelectResource = viewModel::selectResource,
                             onSelectPreset = viewModel::selectPreset,
                             onRefreshResourceRepository = viewModel::refreshResourceRepository,
+                            onClearResourceRepository = viewModel::requestClearResourceRepositoryConfirmation,
                         )
 
                         MaaBbbTab.Tasks -> TasksScreen(
@@ -316,6 +317,7 @@ private fun HomeScreen(
     onSelectResource: (String) -> Unit,
     onSelectPreset: (String) -> Unit,
     onRefreshResourceRepository: () -> Unit,
+    onClearResourceRepository: () -> Unit,
 ) {
     val context = LocalContext.current
     val displayMetrics = context.resources.displayMetrics
@@ -396,12 +398,13 @@ private fun HomeScreen(
                     )
                 },
                 action = FrameworkHomeAction(
+                    title = "清空 GitHub 资源",
+                    actionLabel = if (state.resourceRepositoryUpdating) "处理中" else "清空",
+                    enabled = !state.resourceRepositoryUpdating,
+                    onClick = onClearResourceRepository,
+                ),
+                clearAction = FrameworkHomeAction(
                     title = if (state.resourceRepository.available) "更新 GitHub 资源" else "下载 GitHub 资源",
-                    description = if (state.resourceRepositoryUpdating) {
-                        "正在处理 GitHub 资源缓存"
-                    } else {
-                        "首次下载后会缓存在本地，后续按需手动刷新。"
-                    },
                     actionLabel = if (state.resourceRepositoryUpdating) "处理中" else "执行",
                     enabled = !state.resourceRepositoryUpdating,
                     onClick = onRefreshResourceRepository,
