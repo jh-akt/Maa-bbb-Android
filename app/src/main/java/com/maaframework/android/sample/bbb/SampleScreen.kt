@@ -52,6 +52,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -127,6 +128,7 @@ import com.maaframework.android.ui.MaaPreviewPanel as FrameworkPreviewPanel
 import com.maaframework.android.ui.MaaPreviewSurfaceHost as FrameworkPreviewSurfaceHost
 import com.maaframework.android.ui.MaaRuntimeLogsPanel as FrameworkRuntimeLogsPanel
 import com.maaframework.android.ui.MaaRuntimeLogList as FrameworkRuntimeLogList
+import com.maaframework.android.ui.MaaResourceRepositoryContent as FrameworkResourceRepositoryContent
 import com.maaframework.android.ui.MaaSettingsPanel as FrameworkSettingsPanel
 import com.maaframework.android.ui.MaaSettingsSection as FrameworkSettingsSection
 import com.maaframework.android.ui.MaaTaskDetailPanel as FrameworkTaskDetailPanel
@@ -229,6 +231,7 @@ fun MaaBbbSampleScreen(
                             onSelectResource = viewModel::selectResource,
                             onSelectPreset = viewModel::selectPreset,
                             onRefreshResourceRepository = viewModel::refreshResourceRepository,
+                            onClearResourceRepository = viewModel::requestClearResourceRepositoryConfirmation,
                             onExportConfig = viewModel::exportConfig,
                             onImportConfig = viewModel::importConfig,
                         )
@@ -246,6 +249,13 @@ fun MaaBbbSampleScreen(
                 onPreviewTouchDown = viewModel::onPreviewTouchDown,
                 onPreviewTouchMove = viewModel::onPreviewTouchMove,
                 onPreviewTouchUp = viewModel::onPreviewTouchUp,
+            )
+        }
+
+        if (state.resourceRepositoryClearConfirmVisible) {
+            ResourceRepositoryClearConfirmationDialog(
+                onDismissRequest = viewModel::dismissClearResourceRepositoryConfirmation,
+                onConfirm = viewModel::clearResourceRepository,
             )
         }
     }
@@ -419,6 +429,7 @@ private fun SettingsScreen(
     onSelectResource: (String) -> Unit,
     onSelectPreset: (String) -> Unit,
     onRefreshResourceRepository: () -> Unit,
+    onClearResourceRepository: () -> Unit,
     onExportConfig: (java.io.OutputStream) -> Unit,
     onImportConfig: (java.io.InputStream) -> Unit,
 ) {
@@ -442,35 +453,17 @@ private fun SettingsScreen(
 
     FrameworkSettingsPanel {
         FrameworkSettingsSection(title = "资源") {
-            FrameworkHomeInfoRow(
-                label = "GitHub 资源",
-                value = resourceRepositorySummary(state),
-            )
-            state.resourceRepository.rootPath?.takeIf { it.isNotBlank() }?.let { rootPath ->
-                MaaHomeDivider()
-                FrameworkHomeSupportText(
-                    text = rootPath,
-                    tone = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            state.resourceRepository.lastError?.takeIf { it.isNotBlank() }?.let { error ->
-                MaaHomeDivider()
-                FrameworkHomeSupportText(
-                    text = error,
-                    tone = MaterialTheme.colorScheme.error,
-                )
-            }
-            state.resourceRepositoryProgress?.let { progress ->
-                MaaHomeDivider()
-                FrameworkHomeProgressBlock(
-                    progress = FrameworkHomeProgress(
+            FrameworkResourceRepositoryContent(
+                title = "GitHub 资源",
+                summary = resourceRepositorySummary(state),
+                rootPath = state.resourceRepository.rootPath,
+                error = state.resourceRepository.lastError,
+                progress = state.resourceRepositoryProgress?.let { progress ->
+                    FrameworkHomeProgress(
                         fraction = progress.fraction,
                         label = progress.label,
-                    ),
-                )
-            }
-            MaaHomeDivider()
-            FrameworkHomeActionRow(
+                    )
+                },
                 action = FrameworkHomeAction(
                     title = if (state.resourceRepository.available) "更新 GitHub 资源" else "下载 GitHub 资源",
                     description = if (state.resourceRepositoryUpdating) {
@@ -481,6 +474,13 @@ private fun SettingsScreen(
                     actionLabel = if (state.resourceRepositoryUpdating) "处理中" else "执行",
                     enabled = !state.resourceRepositoryUpdating,
                     onClick = onRefreshResourceRepository,
+                ),
+                clearAction = FrameworkHomeAction(
+                    title = "清空 GitHub 资源",
+                    description = "删除当前缓存和历史目录，下次更新会重新下载，适合排除旧数据干扰。",
+                    actionLabel = if (state.resourceRepositoryUpdating) "处理中" else "清空",
+                    enabled = !state.resourceRepositoryUpdating,
+                    onClick = onClearResourceRepository,
                 ),
             )
             if (state.catalog.resources.isNotEmpty() || state.catalog.presets.isNotEmpty()) {
@@ -550,6 +550,30 @@ private fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ResourceRepositoryClearConfirmationDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("清空 GitHub 资源") },
+        text = {
+            Text("会删除当前资源缓存和历史目录，下次更新会重新下载。")
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("清空")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismissRequest) {
+                Text("取消")
+            }
+        },
+    )
 }
 
 @Composable

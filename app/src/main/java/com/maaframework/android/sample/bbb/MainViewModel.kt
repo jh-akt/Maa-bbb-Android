@@ -56,6 +56,7 @@ data class MainUiState(
     val resourceRepository: PersistentProjectRepositoryStatus = PersistentProjectRepositoryStatus(),
     val resourceRepositoryUpdating: Boolean = false,
     val resourceRepositoryProgress: PersistentProjectRepositorySyncProgress? = null,
+    val resourceRepositoryClearConfirmVisible: Boolean = false,
     val rootReport: RootEnvironmentReport = RootEnvironmentReport(),
     val rootConnected: Boolean = false,
     val servicePing: String = "",
@@ -202,6 +203,23 @@ class MainViewModel(
         }
         viewModelScope.launch {
             syncResourceRepository(force = true, silent = false)
+        }
+    }
+
+    fun requestClearResourceRepositoryConfirmation() {
+        if (_uiState.value.resourceRepositoryUpdating) {
+            return
+        }
+        _uiState.value = _uiState.value.copy(resourceRepositoryClearConfirmVisible = true)
+    }
+
+    fun dismissClearResourceRepositoryConfirmation() {
+        _uiState.value = _uiState.value.copy(resourceRepositoryClearConfirmVisible = false)
+    }
+
+    fun clearResourceRepository() {
+        viewModelScope.launch {
+            clearPersistentResourceRepository()
         }
     }
 
@@ -558,6 +576,43 @@ class MainViewModel(
 
     private fun updateResourceRepositoryProgress(progress: PersistentProjectRepositorySyncProgress) {
         _uiState.value = _uiState.value.copy(resourceRepositoryProgress = progress)
+    }
+
+    private suspend fun clearPersistentResourceRepository() {
+        if (!manifest.hasGitHubResourceRepository() || _uiState.value.resourceRepositoryUpdating) {
+            return
+        }
+        _uiState.value = _uiState.value.copy(
+            resourceRepositoryClearConfirmVisible = false,
+            resourceRepositoryUpdating = true,
+            resourceRepositoryProgress = PersistentProjectRepositorySyncProgress(
+                fraction = 0f,
+                label = "正在清空 GitHub 资源缓存",
+            ),
+            lastMessage = "正在清空 GitHub 资源缓存",
+        )
+        val application = getApplication<Application>()
+        val status = runCatching {
+            withContext(Dispatchers.IO) {
+                PersistentProjectRepositoryManager.clearLocalCache(application, manifest)
+            }
+        }.getOrElse { error ->
+            Log.e(TAG, "Failed to clear GitHub resource repository cache", error)
+            PersistentProjectRepositoryManager.loadStatus(application, manifest).copy(
+                lastError = error.message ?: error::class.java.simpleName,
+            )
+        }
+        refreshCatalogSnapshot(status)
+        _uiState.value = _uiState.value.copy(
+            resourceRepository = status,
+            resourceRepositoryUpdating = false,
+            resourceRepositoryProgress = null,
+            lastMessage = if (status.lastError.isNullOrBlank()) {
+                "GitHub 资源缓存已清空，后续更新会重新下载"
+            } else {
+                "清空 GitHub 资源失败：${status.lastError}"
+            },
+        )
     }
 
     private fun loadCatalogSnapshot(resourceRepository: PersistentProjectRepositoryStatus): CatalogSnapshot {
