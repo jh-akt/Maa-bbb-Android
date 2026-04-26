@@ -19,12 +19,15 @@ include(":framework")
 project(":framework").projectDir = file("MaaFramework-Android/framework")
 ```
 
+App-specific code lives in `app/`. Reusable framework behavior belongs in the framework repository, then this submodule pointer should be updated.
+
 ## Important Boundaries
 
-- App-specific code lives in `app/`.
-- Framework implementation lives in the `MaaFramework-Android` submodule; make reusable framework fixes in the framework repository, then update the submodule pointer here.
+- App-specific UI, settings, project manifest, and Maa_bbb resource behavior live in `app/`.
+- Framework implementation lives in the `MaaFramework-Android` submodule; make reusable framework fixes in `../MaaFramework-Android`, then update the submodule pointer here.
 - Runtime files are resolved by `app/build.gradle.kts`: local override first, prepared submodule runtime second, GitHub Release download last.
 - Do not duplicate framework source into this app repo outside the submodule.
+- Do not mix MaaEnd-specific app behavior into this app. Shared behavior should move into the framework instead.
 
 ## Important Files
 
@@ -42,9 +45,35 @@ For framework/runtime behavior, inspect:
 
 1. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/session/MaaFrameworkSession.kt`
 2. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/session/MaaRuntimeClient.kt`
-3. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/root/RootRuntimeService.kt`
-4. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/runtime/RuntimeBootstrapper.kt`
-5. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/preview/VirtualDisplayManager.kt`
+3. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/catalog/InterfaceCatalogLoader.kt`
+4. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/root/RootRuntimeService.kt`
+5. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/runtime/RuntimeBootstrapper.kt`
+6. `MaaFramework-Android/framework/src/main/java/com/maaframework/android/preview/VirtualDisplayManager.kt`
+
+## Maa_bbb Project Manifest
+
+`app/src/main/assets/maa_project_manifest.json` identifies this app as `maa-bbb`.
+
+Current resource source:
+
+```text
+owner: miaojiuqing
+repo: Maa_bbb
+branch: main
+asset_root_path: .
+```
+
+The manifest maps upstream assets into Android resource layout, including `assets/interface.json`, `assets/resource`, `assets/custom`, and `MaaCommonAssets/OCR/ppocr_v5/zh_cn`.
+
+Default package names include official, Bilibili, OPPO, Huawei, Yingyongbao, VIVO, Jiuyou, and Xiaomi servers.
+
+## App Behavior Notes
+
+- Task list supports multi-select. Keep checkbox state separate from row selection: checkbox controls run inclusion, row/card selection controls the task detail panel.
+- `startSelectedTask()` should run checked tasks as a sequence and fall back to the focused task when nothing is checked.
+- Config import/export lives in app settings and should continue to use Android system file pickers.
+- If task labels or option labels leak raw keys, inspect the pulled Maa_bbb `interface.json`/locale files and then the framework `InterfaceCatalogLoader`.
+- Keep app UI generic and catalog-driven; avoid Maa_bbb-only hardcoded task panels unless there is a concrete blocker.
 
 ## Build Notes
 
@@ -58,19 +87,39 @@ ANDROID_HOME="$HOME/Library/Android/sdk" \
 ./gradlew :app:assembleDebug
 ```
 
+Run framework unit tests through the included submodule:
+
+```bash
+JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" \
+PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
+ANDROID_SDK_ROOT="$HOME/Library/Android/sdk" \
+ANDROID_HOME="$HOME/Library/Android/sdk" \
+./gradlew :framework:testDebugUnitTest
+```
+
 If the framework submodule is missing:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-Runtime binaries are not fully tracked in git. For a complete device run, prepare the Android runtime files under `MaaFramework-Android/runtime/` before packaging.
+## Runtime Resolution
+
+Runtime binaries are not fully tracked in git. `app/build.gradle.kts` resolves a complete Android runtime in this order:
+
+1. `maafwRuntimeDir=/absolute/path/to/MaaFramework-Android/runtime`
+2. `MaaFramework-Android/runtime` in the submodule
+3. GitHub Release archive from `maafwRuntimeUrl`
 
 Runtime override options live in `local.properties`:
 
 ```properties
 maafwRuntimeDir=/absolute/path/to/MaaFramework-Android/runtime
 maafwRuntimeUrl=file:///absolute/path/to/maaframework-android-runtime-arm64-v8a.zip
+maafwRuntimeRepo=jh-akt/MaaFramework-Android
+maafwRuntimeTag=android-runtime-v1
+maafwRuntimeAsset=maaframework-android-runtime-arm64-v8a.zip
+maafwRuntimeRefresh=false
 ```
 
 Default download target:
