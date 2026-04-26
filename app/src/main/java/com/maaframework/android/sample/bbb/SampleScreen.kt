@@ -111,16 +111,24 @@ import com.maaframework.android.ui.MaaFullscreenPreviewOverlay as FrameworkFulls
 import com.maaframework.android.ui.MaaHomeAction as FrameworkHomeAction
 import com.maaframework.android.ui.MaaHomeDivider
 import com.maaframework.android.ui.MaaHomeInfo as FrameworkHomeInfo
+import com.maaframework.android.ui.MaaHomeActionRow as FrameworkHomeActionRow
+import com.maaframework.android.ui.MaaHomeInfoRow as FrameworkHomeInfoRow
 import com.maaframework.android.ui.MaaHomePanel as FrameworkHomePanel
+import com.maaframework.android.ui.MaaHomeProgressBlock as FrameworkHomeProgressBlock
 import com.maaframework.android.ui.MaaHomeProgress as FrameworkHomeProgress
 import com.maaframework.android.ui.MaaHomeRepositoryPanel as FrameworkHomeRepositoryPanel
 import com.maaframework.android.ui.MaaHomeResourcePresetPanel as FrameworkHomeResourcePresetPanel
 import com.maaframework.android.ui.MaaHomeService as FrameworkHomeService
 import com.maaframework.android.ui.MaaHomeStatus as FrameworkHomeStatus
+import com.maaframework.android.ui.MaaHomeSupportText as FrameworkHomeSupportText
 import com.maaframework.android.ui.MaaHomeTone as FrameworkHomeTone
+import com.maaframework.android.ui.MaaLogMetric as FrameworkLogMetric
 import com.maaframework.android.ui.MaaPreviewPanel as FrameworkPreviewPanel
 import com.maaframework.android.ui.MaaPreviewSurfaceHost as FrameworkPreviewSurfaceHost
+import com.maaframework.android.ui.MaaRuntimeLogsPanel as FrameworkRuntimeLogsPanel
 import com.maaframework.android.ui.MaaRuntimeLogList as FrameworkRuntimeLogList
+import com.maaframework.android.ui.MaaSettingsPanel as FrameworkSettingsPanel
+import com.maaframework.android.ui.MaaSettingsSection as FrameworkSettingsSection
 import com.maaframework.android.ui.MaaTaskDetailPanel as FrameworkTaskDetailPanel
 import com.maaframework.android.ui.MaaTaskListPanel as FrameworkTaskListPanel
 import kotlinx.coroutines.delay
@@ -432,32 +440,114 @@ private fun SettingsScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = MaaBbbDesignTokens.Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.sm),
-    ) {
-        item {
-            RepositorySettingsCard(
-                state = state,
-                onRefreshResourceRepository = onRefreshResourceRepository,
+    FrameworkSettingsPanel {
+        FrameworkSettingsSection(title = "资源") {
+            FrameworkHomeInfoRow(
+                label = "GitHub 资源",
+                value = resourceRepositorySummary(state),
+            )
+            state.resourceRepository.rootPath?.takeIf { it.isNotBlank() }?.let { rootPath ->
+                MaaHomeDivider()
+                FrameworkHomeSupportText(
+                    text = rootPath,
+                    tone = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            state.resourceRepository.lastError?.takeIf { it.isNotBlank() }?.let { error ->
+                MaaHomeDivider()
+                FrameworkHomeSupportText(
+                    text = error,
+                    tone = MaterialTheme.colorScheme.error,
+                )
+            }
+            state.resourceRepositoryProgress?.let { progress ->
+                MaaHomeDivider()
+                FrameworkHomeProgressBlock(
+                    progress = FrameworkHomeProgress(
+                        fraction = progress.fraction,
+                        label = progress.label,
+                    ),
+                )
+            }
+            MaaHomeDivider()
+            FrameworkHomeActionRow(
+                action = FrameworkHomeAction(
+                    title = if (state.resourceRepository.available) "更新 GitHub 资源" else "下载 GitHub 资源",
+                    description = if (state.resourceRepositoryUpdating) {
+                        "正在处理 GitHub 资源缓存"
+                    } else {
+                        "首次下载后会缓存在本地，后续按需手动刷新。"
+                    },
+                    actionLabel = if (state.resourceRepositoryUpdating) "处理中" else "执行",
+                    enabled = !state.resourceRepositoryUpdating,
+                    onClick = onRefreshResourceRepository,
+                ),
+            )
+            if (state.catalog.resources.isNotEmpty() || state.catalog.presets.isNotEmpty()) {
+                MaaHomeDivider()
+                FrameworkHomeResourcePresetPanel(
+                    resources = state.catalog.resources,
+                    selectedResourceId = state.selectedResourceId,
+                    onSelectResource = onSelectResource,
+                    presets = state.catalog.presets,
+                    selectedPresetId = state.selectedPresetId,
+                    onSelectPreset = onSelectPreset,
+                )
+            }
+        }
+
+        FrameworkSettingsSection(title = "配置文件") {
+            FrameworkHomeActionRow(
+                action = FrameworkHomeAction(
+                    title = "导出配置",
+                    description = "导出任务勾选、资源、预设和参数配置。",
+                    actionLabel = "导出",
+                    onClick = { exportLauncher.launch("maabbb_android_config.json") },
+                ),
+            )
+            MaaHomeDivider()
+            FrameworkHomeActionRow(
+                action = FrameworkHomeAction(
+                    title = "导入配置",
+                    description = "导入后会覆盖当前本地配置并立即刷新界面。",
+                    actionLabel = "导入",
+                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                ),
             )
         }
-        item {
-            ResourcePresetCard(
-                state = state,
-                onSelectResource = onSelectResource,
-                onSelectPreset = onSelectPreset,
+
+        FrameworkSettingsSection(title = "诊断") {
+            FrameworkHomeInfoRow(
+                label = "Root",
+                value = state.rootReport.summary.ifBlank { "No host diagnostics" },
             )
-        }
-        item {
-            ConfigTransferCard(
-                onExport = { exportLauncher.launch("maabbb_android_config.json") },
-                onImport = { importLauncher.launch(arrayOf("application/json")) },
-            )
-        }
-        item {
-            HostDiagnosticsCard(state = state)
+            if (state.servicePing.isNotBlank()) {
+                MaaHomeDivider()
+                FrameworkHomeSupportText(
+                    text = state.servicePing,
+                    tone = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            state.rootReport.binaryProbes
+                .filter { probe -> probe.exists || probe.executableByApp }
+                .ifEmpty { state.rootReport.binaryProbes.take(3) }
+                .take(4)
+                .forEach { probe ->
+                MaaHomeDivider()
+                FrameworkHomeInfoRow(
+                    label = probe.path,
+                    value = when {
+                        probe.executableByApp -> "可执行"
+                        probe.exists -> "存在但不可执行"
+                        else -> "未找到"
+                    },
+                    valueColor = if (probe.executableByApp) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+            }
         }
     }
 }
@@ -1806,59 +1896,26 @@ private fun AdvancedOverrideCard(
 private fun LogsScreen(
     state: MainUiState,
 ) {
-    SectionCard(
-        title = "运行日志",
+    FrameworkRuntimeLogsPanel(
+        lines = state.displayLogs,
         subtitle = state.runtimeState.lastMessage.ifBlank { state.lastMessage },
         modifier = Modifier.fillMaxSize(),
-        fillHeight = true,
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.md),
-        ) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.sm),
-            ) {
-                MetricTile(label = "阶段", value = state.runtimeState.phase.displayName())
-                MetricTile(label = "当前任务", value = state.runtimeState.currentTaskId ?: "-")
-                MetricTile(label = "连接", value = if (state.rootConnected) "Yes" else "No")
+        metrics = listOf(
+            FrameworkLogMetric(label = "阶段", value = state.runtimeState.phase.displayName()),
+            FrameworkLogMetric(label = "当前任务", value = state.runtimeState.currentTaskId ?: "-"),
+            FrameworkLogMetric(label = "连接", value = if (state.rootConnected) "已连接" else "未连接"),
+        ),
+        detailLines = buildList {
+            state.runtimeState.lastDiagnosticsPath?.takeIf { it.isNotBlank() }?.let {
+                add("Diagnostics: $it")
             }
-
-            if (!state.runtimeState.lastDiagnosticsPath.isNullOrBlank()) {
-                Text(
-                    text = "Diagnostics: ${state.runtimeState.lastDiagnosticsPath}",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            state.runtimeState.lastFailure?.screenshotPath?.takeIf { it.isNotBlank() }?.let {
+                add("Last failure screenshot: $it")
             }
-            state.runtimeState.lastFailure?.screenshotPath?.takeIf { it.isNotBlank() }?.let { screenshotPath ->
-                Text(
-                    text = "Last failure screenshot: $screenshotPath",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        shape = RoundedCornerShape(MaaBbbDesignTokens.CornerRadius.inner),
-                    )
-                    .padding(MaaBbbDesignTokens.Spacing.md),
-            ) {
-                FrameworkRuntimeLogList(
-                    lines = state.displayLogs,
-                    modifier = Modifier.fillMaxSize(),
-                    emptyTitle = "No logs yet",
-                    emptyDescription = "Start a task to see runtime output here.",
-                )
-            }
-        }
-    }
+        },
+        emptyTitle = "暂无日志",
+        emptyDescription = "开始任务后，这里会显示运行日志。",
+    )
 }
 
 @Composable
