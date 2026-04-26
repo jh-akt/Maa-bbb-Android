@@ -8,6 +8,7 @@
   - Git submodule
   - URL: `git@github.com:jh-akt/MaaFramework-Android.git`
   - `settings.gradle.kts` 会把其中的 `framework/` 挂载成 Gradle 子项目 `:framework`
+  - `app/build.gradle.kts` 会从 GitHub Release 下载 runtime zip，或使用本地覆盖路径
 - `app/`
   - Maa_bbb Android 应用模块
   - 包含 Maa_bbb 的任务 UI、配置导入导出、虚拟屏预览和 Root Runtime 控制
@@ -61,4 +62,44 @@ Runtime 打包目录默认指向：
 MaaFramework-Android/runtime
 ```
 
-GitHub 上的 framework 仓库只跟踪 runtime 说明和工具脚本，实际 Android runtime 二进制仍需要按框架仓库说明准备到该目录后再做完整设备运行验证。
+## Runtime 自动获取
+
+默认构建会按下面的优先级解析 Android runtime：
+
+1. `local.properties` 中的 `maafwRuntimeDir`
+2. submodule 内已准备好的 `MaaFramework-Android/runtime`
+3. GitHub Release asset
+
+默认 Release 配置：
+
+```properties
+maafwRuntimeRepo=jh-akt/MaaFramework-Android
+maafwRuntimeTag=android-runtime-v1
+maafwRuntimeAsset=maaframework-android-runtime-arm64-v8a.zip
+```
+
+默认 URL 等价于：
+
+```text
+https://github.com/jh-akt/MaaFramework-Android/releases/download/android-runtime-v1/maaframework-android-runtime-arm64-v8a.zip
+```
+
+开发机可以用 `local.properties` 覆盖：
+
+```properties
+maafwRuntimeDir=/Users/haojiang/Code/MaaFramework-Android/runtime
+```
+
+也可以直接指向一个本地或远程 zip：
+
+```properties
+maafwRuntimeUrl=file:///Users/haojiang/Code/MaaFramework-Android/dist/maaframework-android-runtime-arm64-v8a.zip
+```
+
+如果需要重新下载同名 zip：
+
+```bash
+./gradlew :app:assembleDebug -PmaafwRuntimeRefresh=true
+```
+
+GitHub 上的 framework 仓库只跟踪 runtime 说明和工具脚本，实际 Android runtime 二进制需要通过 `MaaFramework-Android/tools/package_android_runtime.py` 打包并发布为 Release asset，或在本机用 `maafwRuntimeDir` 覆盖。

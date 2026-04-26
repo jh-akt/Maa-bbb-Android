@@ -23,7 +23,7 @@ project(":framework").projectDir = file("MaaFramework-Android/framework")
 
 - App-specific code lives in `app/`.
 - Framework implementation lives in the `MaaFramework-Android` submodule; make reusable framework fixes in the framework repository, then update the submodule pointer here.
-- Runtime files are read from `MaaFramework-Android/runtime/` during `:app` packaging.
+- Runtime files are resolved by `app/build.gradle.kts`: local override first, prepared submodule runtime second, GitHub Release download last.
 - Do not duplicate framework source into this app repo outside the submodule.
 
 ## Important Files
@@ -65,6 +65,19 @@ git submodule update --init --recursive
 ```
 
 Runtime binaries are not fully tracked in git. For a complete device run, prepare the Android runtime files under `MaaFramework-Android/runtime/` before packaging.
+
+Runtime override options live in `local.properties`:
+
+```properties
+maafwRuntimeDir=/absolute/path/to/MaaFramework-Android/runtime
+maafwRuntimeUrl=file:///absolute/path/to/maaframework-android-runtime-arm64-v8a.zip
+```
+
+Default download target:
+
+```text
+https://github.com/jh-akt/MaaFramework-Android/releases/download/android-runtime-v1/maaframework-android-runtime-arm64-v8a.zip
+```
 
 ## Device Notes
 
