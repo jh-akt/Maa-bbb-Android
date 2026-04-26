@@ -107,6 +107,12 @@ import com.maaframework.android.model.TaskDescriptor
 import com.maaframework.android.model.TaskOptionDescriptor
 import com.maaframework.android.model.TaskOptionType
 import com.maaframework.android.preview.DefaultDisplayConfig
+import com.maaframework.android.ui.MaaFullscreenPreviewOverlay as FrameworkFullscreenPreviewOverlay
+import com.maaframework.android.ui.MaaPreviewPanel as FrameworkPreviewPanel
+import com.maaframework.android.ui.MaaPreviewSurfaceHost as FrameworkPreviewSurfaceHost
+import com.maaframework.android.ui.MaaRuntimeLogList as FrameworkRuntimeLogList
+import com.maaframework.android.ui.MaaTaskDetailPanel as FrameworkTaskDetailPanel
+import com.maaframework.android.ui.MaaTaskListPanel as FrameworkTaskListPanel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -124,7 +130,7 @@ fun MaaBbbSampleScreen(
     var isFullscreenPreview by rememberSaveable { mutableStateOf(false) }
     val previewContent = remember {
         movableContentOf {
-            PreviewSurfaceHost(
+            FrameworkPreviewSurfaceHost(
                 modifier = Modifier.fillMaxSize(),
                 onPreviewSurfaceChanged = viewModel::setPreviewSurface,
             )
@@ -218,10 +224,12 @@ fun MaaBbbSampleScreen(
         }
 
         if (isFullscreenPreview) {
-            FullscreenPreviewOverlay(
-                viewModel = viewModel,
+            FrameworkFullscreenPreviewOverlay(
                 previewContent = previewContent,
                 onDismissRequest = { isFullscreenPreview = false },
+                onPreviewTouchDown = viewModel::onPreviewTouchDown,
+                onPreviewTouchMove = viewModel::onPreviewTouchMove,
+                onPreviewTouchUp = viewModel::onPreviewTouchUp,
             )
         }
     }
@@ -750,14 +758,36 @@ private fun TasksScreen(
     onExpandPreview: () -> Unit,
     previewContent: @Composable () -> Unit,
 ) {
+    val visibleTaskOptions = remember(selectedTask, state.selectedResourceId) {
+        selectedTask?.let {
+            ProjectInterfaceSupport.filterOptionsForResource(it.options, state.selectedResourceId)
+        }.orEmpty()
+    }
+    val taskInputErrors = remember(
+        visibleTaskOptions,
+        selectedTask?.id,
+        state.taskOptionSelectionsByTask,
+        state.taskInputValuesByTask,
+    ) {
+        if (selectedTask == null) {
+            emptyMap()
+        } else {
+            ProjectInterfaceSupport.collectInputValidationErrors(
+                options = visibleTaskOptions,
+                selectedByOption = state.taskOptionSelectionsByTask[selectedTask.id].orEmpty(),
+                inputValuesByOption = state.taskInputValuesByTask[selectedTask.id].orEmpty(),
+            )
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.sm),
     ) {
-        PreviewCard(
-            state = state,
+        FrameworkPreviewPanel(
             isFullscreenPreview = isFullscreenPreview,
             onExpandPreview = onExpandPreview,
+            overlayText = if (!state.rootConnected) "等待 Root / Runtime 连接" else null,
             previewContent = previewContent,
         )
 
@@ -768,26 +798,37 @@ private fun TasksScreen(
             horizontalArrangement = Arrangement.spacedBy(MaaBbbDesignTokens.Spacing.sm),
             verticalAlignment = Alignment.Top,
         ) {
-            TaskListPanel(
+            FrameworkTaskListPanel(
                 tasks = tasks,
                 selectedTaskId = state.selectedTaskId,
                 checkedTaskIds = state.checkedTaskIds,
-                runningTaskId = state.runtimeState.currentTaskId,
-                modifier = Modifier.fillMaxHeight(),
                 onSelectTask = onSelectTask,
                 onToggleTaskChecked = onToggleTaskChecked,
+                modifier = Modifier.fillMaxHeight(),
+                runningTaskId = state.runtimeState.currentTaskId,
             )
-            TaskDetailPanel(
-                state = state,
-                selectedTask = selectedTask,
+            FrameworkTaskDetailPanel(
+                task = selectedTask,
+                options = visibleTaskOptions,
+                selectedCaseNamesByOption = selectedTask
+                    ?.let { state.taskOptionSelectionsByTask[it.id].orEmpty() }
+                    .orEmpty(),
+                inputValuesByOption = selectedTask
+                    ?.let { state.taskInputValuesByTask[it.id].orEmpty() }
+                    .orEmpty(),
+                inputErrorsByOption = taskInputErrors,
+                onSwitchOption = onSwitchTaskOption,
+                onToggleCheckboxOption = onToggleTaskCheckboxOption,
+                onInputValueChange = onTaskInputValueChange,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
-                onOverrideJsonChange = onOverrideJsonChange,
-                onSwitchTaskOption = onSwitchTaskOption,
-                onToggleTaskCheckboxOption = onToggleTaskCheckboxOption,
-                onTaskInputValueChange = onTaskInputValueChange,
-            )
+            ) {
+                AdvancedOverrideCard(
+                    value = state.overrideJson,
+                    onValueChange = onOverrideJsonChange,
+                )
+            }
         }
 
         Row(
@@ -1735,13 +1776,11 @@ private fun LogsScreen(
                     )
                     .padding(MaaBbbDesignTokens.Spacing.md),
             ) {
-                Text(
-                    text = if (state.displayLogs.isEmpty()) "No logs yet" else state.displayLogs.joinToString("\n"),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurface,
+                FrameworkRuntimeLogList(
+                    lines = state.displayLogs,
+                    modifier = Modifier.fillMaxSize(),
+                    emptyTitle = "No logs yet",
+                    emptyDescription = "Start a task to see runtime output here.",
                 )
             }
         }
