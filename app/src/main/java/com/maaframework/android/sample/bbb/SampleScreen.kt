@@ -129,6 +129,8 @@ import com.maaframework.android.ui.MaaPreviewSurfaceHost as FrameworkPreviewSurf
 import com.maaframework.android.ui.MaaRuntimeLogsPanel as FrameworkRuntimeLogsPanel
 import com.maaframework.android.ui.MaaRuntimeLogList as FrameworkRuntimeLogList
 import com.maaframework.android.ui.MaaResourceRepositoryContent as FrameworkResourceRepositoryContent
+import com.maaframework.android.ui.MaaSettingsChoice as FrameworkSettingsChoice
+import com.maaframework.android.ui.MaaSettingsChoiceRow as FrameworkSettingsChoiceRow
 import com.maaframework.android.ui.MaaSettingsPanel as FrameworkSettingsPanel
 import com.maaframework.android.ui.MaaSettingsSection as FrameworkSettingsSection
 import com.maaframework.android.ui.MaaTaskDetailPanel as FrameworkTaskDetailPanel
@@ -233,6 +235,7 @@ fun MaaBbbSampleScreen(
                             onSelectPreset = viewModel::selectPreset,
                             onRefreshResourceRepository = viewModel::refreshResourceRepository,
                             onClearResourceRepository = viewModel::requestClearResourceRepositoryConfirmation,
+                            onLogLevelChange = viewModel::updateLogLevel,
                             onExportConfig = viewModel::exportConfig,
                             onImportConfig = viewModel::importConfig,
                         )
@@ -433,6 +436,7 @@ private fun SettingsScreen(
     onSelectPreset: (String) -> Unit,
     onRefreshResourceRepository: () -> Unit,
     onClearResourceRepository: () -> Unit,
+    onLogLevelChange: (String) -> Unit,
     onExportConfig: (java.io.OutputStream) -> Unit,
     onImportConfig: (java.io.InputStream) -> Unit,
 ) {
@@ -497,6 +501,21 @@ private fun SettingsScreen(
                     onSelectPreset = onSelectPreset,
                 )
             }
+        }
+
+        FrameworkSettingsSection(title = "日志") {
+            FrameworkSettingsChoiceRow(
+                title = "日志级别",
+                description = "控制 root runtime 与日志页展示的详细程度",
+                options = listOf(
+                    FrameworkSettingsChoice("error", "错误"),
+                    FrameworkSettingsChoice("warn", "警告"),
+                    FrameworkSettingsChoice("info", "信息"),
+                    FrameworkSettingsChoice("debug", "调试"),
+                ),
+                selected = state.logLevel,
+                onSelected = onLogLevelChange,
+            )
         }
 
         FrameworkSettingsSection(title = "配置文件") {

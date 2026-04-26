@@ -25,6 +25,7 @@ data class AppSettings(
     val taskOptionSelectionsByTask: Map<String, Map<String, Set<String>>> = emptyMap(),
     val taskInputValuesByTask: Map<String, Map<String, Map<String, String>>> = emptyMap(),
     val overrideJson: String = "{}",
+    val logLevel: String = "info",
 )
 
 class AppSettingsRepository(context: Context) {
@@ -45,6 +46,7 @@ class AppSettingsRepository(context: Context) {
             taskOptionSelectionsByTask = decode(KEY_TASK_OPTION_SELECTIONS, emptyMap()),
             taskInputValuesByTask = decode(KEY_TASK_INPUT_VALUES, emptyMap()),
             overrideJson = prefs.getString(KEY_OVERRIDE_JSON, "{}") ?: "{}",
+            logLevel = prefs.getString(KEY_LOG_LEVEL, "info") ?: "info",
         )
     }
 
@@ -74,6 +76,10 @@ class AppSettingsRepository(context: Context) {
 
     fun saveOverrideJson(value: String) {
         prefs.edit().putString(KEY_OVERRIDE_JSON, value).apply()
+    }
+
+    fun saveLogLevel(value: String) {
+        prefs.edit().putString(KEY_LOG_LEVEL, value).apply()
     }
 
     fun exportTo(outputStream: OutputStream) {
@@ -107,6 +113,7 @@ class AppSettingsRepository(context: Context) {
             .putString(KEY_TASK_OPTION_SELECTIONS, json.encodeToString(settings.taskOptionSelectionsByTask))
             .putString(KEY_TASK_INPUT_VALUES, json.encodeToString(settings.taskInputValuesByTask))
             .putString(KEY_OVERRIDE_JSON, settings.overrideJson)
+            .putString(KEY_LOG_LEVEL, settings.logLevel)
             .apply()
     }
 
@@ -128,5 +135,6 @@ class AppSettingsRepository(context: Context) {
         const val KEY_TASK_OPTION_SELECTIONS = "task_option_selections"
         const val KEY_TASK_INPUT_VALUES = "task_input_values"
         const val KEY_OVERRIDE_JSON = "override_json"
+        const val KEY_LOG_LEVEL = "log_level"
     }
 }

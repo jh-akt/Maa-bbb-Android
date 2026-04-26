@@ -68,6 +68,7 @@ data class MainUiState(
     val taskInputValuesByTask: Map<String, Map<String, Map<String, String>>> = emptyMap(),
     val selectedPresetId: String? = null,
     val overrideJson: String = "{}",
+    val logLevel: String = "info",
     val displayLogs: List<String> = emptyList(),
     val lastMessage: String = "",
     val busy: Boolean = false,
@@ -166,6 +167,11 @@ class MainViewModel(
     fun updateOverrideJson(value: String) {
         _uiState.value = _uiState.value.copy(overrideJson = value)
         settingsRepository.saveOverrideJson(value)
+    }
+
+    fun updateLogLevel(value: String) {
+        _uiState.value = _uiState.value.copy(logLevel = value)
+        settingsRepository.saveLogLevel(value)
     }
 
     fun updateTaskSwitchOption(taskId: String, optionId: String, caseName: String) {
@@ -362,6 +368,7 @@ class MainViewModel(
             taskId = requestedTaskIds.first(),
             sequenceTaskIds = requestedTaskIds,
             resourceName = state.selectedResourceId ?: manifest.defaultResourceId.orEmpty(),
+            logLevel = state.logLevel,
             optionOverridesByTask = buildOverrideMap(
                 tasks = requestedTasks,
                 resourceId = state.selectedResourceId,
@@ -389,6 +396,7 @@ class MainViewModel(
             presetId = preset.id,
             sequenceTaskIds = preset.taskIds,
             resourceName = state.selectedResourceId ?: manifest.defaultResourceId.orEmpty(),
+            logLevel = state.logLevel,
         )
         startRun(request, "Starting preset ${preset.label}")
     }
@@ -709,6 +717,7 @@ class MainViewModel(
             taskInputValuesByTask = taskInputValuesByTask,
             selectedPresetId = selectedPresetId,
             overrideJson = normalizeOverrideJson(settings.overrideJson),
+            logLevel = settings.logLevel,
             lastMessage = if (initialMessage.isNotBlank()) {
                 initialMessage
             } else if (catalog.tasks.isEmpty()) {
@@ -1063,6 +1072,7 @@ class MainViewModel(
             taskOptionSelectionsByTask = mergeTaskOptionSelections(state.catalog.tasks, settings.taskOptionSelectionsByTask),
             taskInputValuesByTask = mergeTaskInputValues(state.catalog.tasks, settings.taskInputValuesByTask),
             overrideJson = normalizeOverrideJson(settings.overrideJson),
+            logLevel = settings.logLevel,
         )
     }
 
@@ -1079,6 +1089,7 @@ class MainViewModel(
             taskOptionSelectionsByTask = state.taskOptionSelectionsByTask,
             taskInputValuesByTask = state.taskInputValuesByTask,
             overrideJson = normalizeOverrideJson(state.overrideJson),
+            logLevel = state.logLevel,
         )
     }
 
