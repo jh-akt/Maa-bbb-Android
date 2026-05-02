@@ -102,12 +102,17 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.maaframework.android.catalog.TaskOptionSupport
+import com.maaframework.android.model.MaaLogLevels
 import com.maaframework.android.model.RootBinaryProbe
-import com.maaframework.android.model.RunSessionPhase
 import com.maaframework.android.model.TaskDescriptor
 import com.maaframework.android.model.TaskOptionDescriptor
 import com.maaframework.android.model.TaskOptionType
+import com.maaframework.android.model.canStopRun
+import com.maaframework.android.model.canToggleDisplayPower
+import com.maaframework.android.model.displayName
 import com.maaframework.android.preview.DefaultDisplayConfig
+import com.maaframework.android.runtime.summaryText
 import com.maaframework.android.ui.MaaFullscreenPreviewOverlay as FrameworkFullscreenPreviewOverlay
 import com.maaframework.android.ui.MaaHomeAction as FrameworkHomeAction
 import com.maaframework.android.ui.MaaHomeDivider
@@ -507,12 +512,7 @@ private fun SettingsScreen(
             FrameworkSettingsChoiceRow(
                 title = "日志级别",
                 description = "控制 root runtime 与日志页展示的详细程度",
-                options = listOf(
-                    FrameworkSettingsChoice("error", "错误"),
-                    FrameworkSettingsChoice("warn", "警告"),
-                    FrameworkSettingsChoice("info", "信息"),
-                    FrameworkSettingsChoice("debug", "调试"),
-                ),
+                options = MaaLogLevels.choices.map { FrameworkSettingsChoice(it, it.logLevelLabel()) },
                 selected = state.logLevel,
                 onSelected = onLogLevelChange,
             )
@@ -697,19 +697,13 @@ private fun QuickActionsCard(
             )
             ActionButton(
                 label = if (state.runtimeState.displayPowerOffActive) "恢复亮屏" else "息屏挂机",
-                enabled = state.rootConnected && (
-                    state.runtimeState.phase in setOf(
-                        RunSessionPhase.Preparing,
-                        RunSessionPhase.Running,
-                        RunSessionPhase.Stopping,
-                    ) || state.runtimeState.displayPowerOffActive
-                ),
+                enabled = state.runtimeState.canToggleDisplayPower(state.rootConnected),
                 outlined = true,
                 onClick = onToggleDisplayPower,
             )
             ActionButton(
                 label = "停止任务",
-                enabled = state.rootConnected && canStopRun(state.runtimeState),
+                enabled = state.rootConnected && state.runtimeState.canStopRun(),
                 outlined = true,
                 onClick = onStop,
             )
@@ -970,7 +964,7 @@ private fun TasksScreen(
 ) {
     val visibleTaskOptions = remember(selectedTask, state.selectedResourceId) {
         selectedTask?.let {
-            ProjectInterfaceSupport.filterOptionsForResource(it.options, state.selectedResourceId)
+            TaskOptionSupport.filterOptionsForResource(it.options, state.selectedResourceId)
         }.orEmpty()
     }
     val taskInputErrors = remember(
@@ -982,7 +976,7 @@ private fun TasksScreen(
         if (selectedTask == null) {
             emptyMap()
         } else {
-            ProjectInterfaceSupport.collectInputValidationErrors(
+            TaskOptionSupport.collectInputValidationErrors(
                 options = visibleTaskOptions,
                 selectedByOption = state.taskOptionSelectionsByTask[selectedTask.id].orEmpty(),
                 inputValuesByOption = state.taskInputValuesByTask[selectedTask.id].orEmpty(),
@@ -1072,7 +1066,7 @@ private fun TasksScreen(
                     .weight(1f)
                     .height(54.dp),
                 shape = RoundedCornerShape(MaaBbbDesignTokens.CornerRadius.inner),
-                enabled = canStopRun(state.runtimeState),
+                enabled = state.runtimeState.canStopRun(),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
@@ -1089,13 +1083,7 @@ private fun TasksScreen(
                     .widthIn(min = 56.dp)
                     .height(48.dp),
                 shape = RoundedCornerShape(MaaBbbDesignTokens.CornerRadius.inner),
-                enabled = state.rootConnected && (
-                    state.runtimeState.phase in setOf(
-                        RunSessionPhase.Preparing,
-                        RunSessionPhase.Running,
-                        RunSessionPhase.Stopping,
-                    ) || state.runtimeState.displayPowerOffActive
-                ),
+                enabled = state.runtimeState.canToggleDisplayPower(state.rootConnected),
                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
             ) {
                 Text(
@@ -1508,7 +1496,7 @@ private fun TaskDetailPanel(
 ) {
     val visibleTaskOptions = remember(selectedTask, state.selectedResourceId) {
         selectedTask?.let {
-            ProjectInterfaceSupport.filterOptionsForResource(it.options, state.selectedResourceId)
+            TaskOptionSupport.filterOptionsForResource(it.options, state.selectedResourceId)
         }.orEmpty()
     }
     val taskInputErrors = remember(
@@ -1520,7 +1508,7 @@ private fun TaskDetailPanel(
         if (selectedTask == null) {
             emptyMap()
         } else {
-            ProjectInterfaceSupport.collectInputValidationErrors(
+            TaskOptionSupport.collectInputValidationErrors(
                 options = visibleTaskOptions,
                 selectedByOption = state.taskOptionSelectionsByTask[selectedTask.id].orEmpty(),
                 inputValuesByOption = state.taskInputValuesByTask[selectedTask.id].orEmpty(),
@@ -1651,7 +1639,7 @@ private fun TaskOptionBlock(
     nested: Boolean = false,
 ) {
     val selectedCaseNames = selectedCaseNamesByOption[option.id].takeUnless { it.isNullOrEmpty() }
-        ?: ProjectInterfaceSupport.defaultSelectionForOption(option)
+        ?: TaskOptionSupport.defaultSelectionForOption(option)
     val inputValues = inputValuesByOption[option.id].orEmpty()
     val contentPadding = if (compact) 6.dp else MaaBbbDesignTokens.Spacing.sm
     val blockSpacing = if (compact) 4.dp else MaaBbbDesignTokens.Spacing.xs
@@ -2142,14 +2130,12 @@ private fun ActionButton(
 }
 
 private fun resourceRepositorySummary(state: MainUiState): String {
-    val repo = state.manifest.githubResourceRepository?.let { "${it.owner}/${it.repo}" } ?: "未配置"
-    val branch = state.resourceRepository.branch ?: state.manifest.githubResourceRepository?.branch ?: "main"
-    return when {
-        state.resourceRepositoryUpdating -> "$repo / $branch / 同步中"
-        state.resourceRepository.available -> "$repo / $branch / 已就绪"
-        state.resourceRepository.lastError.isNullOrBlank() -> "$repo / $branch / 尚未下载"
-        else -> "$repo / $branch / 更新失败"
-    }
+    val config = state.manifest.githubResourceRepository
+    return state.resourceRepository.summaryText(
+        repositoryLabel = config?.let { "${it.owner}/${it.repo}" },
+        branchLabel = state.resourceRepository.branch ?: config?.branch ?: "main",
+        updating = state.resourceRepositoryUpdating,
+    )
 }
 
 private fun homeServiceStatusLabel(state: MainUiState): String {
@@ -2212,23 +2198,14 @@ private fun MaaBbbTab.icon(): ImageVector = when (this) {
     MaaBbbTab.Logs -> Icons.AutoMirrored.Filled.Article
 }
 
-private fun RunSessionPhase.displayName(): String {
+private fun String.logLevelLabel(): String {
     return when (this) {
-        RunSessionPhase.Idle -> "Idle"
-        RunSessionPhase.Preparing -> "Preparing"
-        RunSessionPhase.Running -> "Running"
-        RunSessionPhase.Stopping -> "Stopping"
-        RunSessionPhase.Completed -> "Completed"
-        RunSessionPhase.Failed -> "Failed"
+        MaaLogLevels.ERROR -> "错误"
+        MaaLogLevels.WARN -> "警告"
+        MaaLogLevels.INFO -> "信息"
+        MaaLogLevels.DEBUG -> "调试"
+        else -> this
     }
-}
-
-private fun canStopRun(runtimeState: com.maaframework.android.model.RuntimeStateSnapshot): Boolean {
-    return runtimeState.phase in setOf(
-        RunSessionPhase.Preparing,
-        RunSessionPhase.Running,
-        RunSessionPhase.Stopping,
-    )
 }
 
 private data class PreviewPoint(
