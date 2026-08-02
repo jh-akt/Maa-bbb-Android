@@ -394,11 +394,32 @@ class MainViewModel(
             return
         }
 
+        val visibleTasks = visibleTasks(state.catalog.tasks, state.selectedResourceId)
+        val requestedTasks = preset.taskIds.mapNotNull { taskId ->
+            visibleTasks.firstOrNull { it.id == taskId }
+        }
+        if (requestedTasks.isEmpty()) {
+            _uiState.value = state.copy(lastMessage = "Preset ${preset.label} has no tasks for the selected resource")
+            return
+        }
+        val validationError = validateTaskOptionSelections(requestedTasks, state.selectedResourceId)
+        if (validationError != null) {
+            _uiState.value = state.copy(lastMessage = validationError)
+            return
+        }
+
         val request = RunRequest(
+            taskId = requestedTasks.first().id,
             presetId = preset.id,
-            sequenceTaskIds = preset.taskIds,
+            sequenceTaskIds = requestedTasks.map { it.id },
             resourceName = state.selectedResourceId ?: manifest.defaultResourceId.orEmpty(),
             logLevel = state.logLevel,
+            optionOverridesByTask = buildOverrideMap(
+                tasks = requestedTasks,
+                resourceId = state.selectedResourceId,
+                selectedTaskId = state.selectedTaskId,
+                overrideJson = state.overrideJson,
+            ),
         )
         startRun(request, "Starting preset ${preset.label}")
     }

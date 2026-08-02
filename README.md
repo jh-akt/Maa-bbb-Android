@@ -7,11 +7,11 @@
 - `MaaFramework-Android/`
   - Git submodule
   - URL: `git@github.com:jh-akt/MaaFramework-Android.git`
-  - `settings.gradle.kts` 会把其中的 `framework/` 挂载成 Gradle 子项目 `:framework`
-  - `app/build.gradle.kts` 会从 GitHub Release 下载 runtime zip，或使用本地覆盖路径
+  - `settings.gradle.kts` 会挂载 `:framework`、`:framework-host`、`:framework-ui` 和 Runtime 构建插件
+  - `app/build.gradle.kts` 只保留应用配置，Runtime 下载/校验由框架约定插件完成
 - `app/`
   - Maa_bbb Android 应用模块
-  - 包含 Maa_bbb 的任务 UI、配置导入导出、虚拟屏预览和 Root Runtime 控制
+  - 保留 Maa_bbb 品牌、主题、应用 ID、清单与薄 ViewModel 适配；四页宿主 UI 来自框架
 
 ## 克隆
 
@@ -28,12 +28,10 @@ git submodule update --init --recursive
 ## 构建
 
 ```bash
-JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" \
-PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
-ANDROID_SDK_ROOT="$HOME/Library/Android/sdk" \
-ANDROID_HOME="$HOME/Library/Android/sdk" \
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug :app:testDebugUnitTest
 ```
+
+需要 JDK 21 和 Android SDK 36。
 
 调试安装：
 
@@ -46,20 +44,18 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 这个项目在 `settings.gradle.kts` 中引用 submodule 里的框架模块：
 
 ```kotlin
-include(":framework")
+include(":framework", ":framework-host", ":framework-ui")
 project(":framework").projectDir = file("MaaFramework-Android/framework")
+project(":framework-host").projectDir = file("MaaFramework-Android/framework-host")
+project(":framework-ui").projectDir = file("MaaFramework-Android/framework-ui")
 ```
 
 App 模块继续通过 Gradle 子项目依赖框架：
 
 ```kotlin
 implementation(project(":framework"))
-```
-
-Runtime 打包目录默认指向：
-
-```kotlin
-MaaFramework-Android/runtime
+implementation(project(":framework-host"))
+implementation(project(":framework-ui"))
 ```
 
 ## Runtime 自动获取
@@ -69,6 +65,8 @@ MaaFramework-Android/runtime
 1. `local.properties` 中的 `maafwRuntimeDir`
 2. submodule 内已准备好的 `MaaFramework-Android/runtime`
 3. GitHub Release asset
+
+Release zip 会使用同名 `.sha256` 文件校验后再解包。
 
 默认 Release 配置：
 
@@ -84,16 +82,16 @@ maafwRuntimeAsset=maaframework-android-runtime-arm64-v8a.zip
 https://github.com/jh-akt/MaaFramework-Android/releases/download/android-runtime-v1/maaframework-android-runtime-arm64-v8a.zip
 ```
 
-开发机可以用 `local.properties` 覆盖：
+开发机可以用 `local.properties` 覆盖（路径按自己的工作区填写）：
 
 ```properties
-maafwRuntimeDir=/Users/haojiang/Code/MaaFramework-Android/runtime
+maafwRuntimeDir=/path/to/MaaFramework-Android/runtime
 ```
 
 也可以直接指向一个本地或远程 zip：
 
 ```properties
-maafwRuntimeUrl=file:///Users/haojiang/Code/MaaFramework-Android/dist/maaframework-android-runtime-arm64-v8a.zip
+maafwRuntimeUrl=file:///path/to/maaframework-android-runtime-arm64-v8a.zip
 ```
 
 如果需要重新下载同名 zip：
