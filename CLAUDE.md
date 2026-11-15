@@ -1,5 +1,18 @@
 # Claude Notes
 
+## Current host integration (2026-11-15)
+
+The app now extends `MaaHostActivity`; its shared ViewModel, settings, theme,
+preview and foreground resource-update lifecycle are owned by `framework-host`
+and `framework-ui`. Old app-local `MainViewModel`, screen, settings wrapper and
+Compose theme files listed in historical notes below have been removed.
+Start with `MainActivity.kt`, `app/src/main/assets/maa_project_manifest.json` and
+`app/build.gradle.kts`. Preserve `hostPreferencesName` so existing settings survive.
+Make reusable fixes in the sibling framework repository first, then advance the
+submodule. Resource updates use the existing source repository and optional local
+overlays; the host APK and native runtime are upgraded separately.
+
+
 This is the primary agent guidance file for this repository. Read this file before making changes.
 
 ## Project Context
