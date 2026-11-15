@@ -9,6 +9,12 @@ plugins {
     id("com.maaframework.android.host-application")
 }
 
+maaRuntime {
+    releaseTag.set("android-runtime-5.16.1-r1")
+    releaseAsset.set("maaframework-python-android-arm64-v8a-5.16.1.zip")
+    sha256.set("8260946db3fc75b5acae2187d80f28b45d8d85934c5bb25ce844f4b26dff631c")
+}
+
 val signingPropertiesFile = rootProject.file("key.properties")
 val signingProperties = Properties().apply {
     if (signingPropertiesFile.exists()) {
@@ -24,8 +30,8 @@ android {
         applicationId = "com.maaframework.android.sample.bbb"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {

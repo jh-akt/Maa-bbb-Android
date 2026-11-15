@@ -126,3 +126,11 @@ python3 -c 'from pathlib import Path; print(Path("../MaaFramework-Android/dist/m
 ```
 
 GitHub 上的 framework 仓库只跟踪 runtime 说明和工具脚本，实际 Android runtime 二进制需要通过 `MaaFramework-Android/tools/package_android_runtime.py` 打包并发布为 Release asset，或在本机用 `maafwRuntimeDir` 覆盖。
+
+### 原生运行库与 16 KiB 页面
+
+0.2.1 使用 MaaFramework 5.16.1 与同版本 Python 绑定。运行包版本和 SHA-256 固定在
+`app/build.gradle.kts`，CI 校验 APK 内的全部 ELF（包括 Python 启动器、扩展和 JNI 库）
+以及 ZIP 对齐。重建方法见 `MaaFramework-Android/docs/ANDROID_RUNTIME_16K.md`。
+CPython 3.14.4 和原有 Python fallback 包保持不变；此更新不新增完整 NumPy/Pillow 支持。
+资源自动更新与本地覆盖继续独立生效。尚需 16 KiB Android 设备上的运行验证。
