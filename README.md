@@ -1,5 +1,21 @@
 # Maa-bbb Android
 
+## 共用框架同步（0.2.0）
+
+界面、主题、保亮／息屏恢复、Root 会话、预览触控与更新生命周期统一使用
+`MaaHostActivity`。沿用原设置存储 `maabbb_android_settings`，保留任务勾选、参数和配置导入导出。
+ADB 支持的任务排在前面，不支持的任务排在后面并禁止执行。
+
+“自动更新上游资源”默认开启：应用在前台每 6 小时检查一次，任务准备、运行和停止
+期间延后，失败后 30 分钟重试；首页也可手动更新。沿用下方指定的上游资源仓库及
+子模块，同步成功后下次准备运行时生效。此模式不更新宿主 APK 或替换 Android
+原生运行时；需要本地适配时可通过 manifest 的 `local_overlay_path` 接入框架覆盖规则。
+
+克隆后执行 `git submodule update --init --recursive`。使用 JDK 21、Android SDK 36、
+NDK 27.0.12077973 与 CMake 3.22.1 构建；GitHub CI 完成构建后提供 Debug APK。
+本轮验收覆盖构建和自动化测试，未进行手机任务测试。
+
+
 `Maa-bbb Android` 是 Maa_bbb 的 Android Root 宿主应用。框架代码不复制到本仓库，而是通过 Git submodule 引用 GitHub 上的 `MaaFramework-Android`。
 
 ## 项目关系
