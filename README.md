@@ -101,14 +101,23 @@ https://github.com/jh-akt/MaaFramework-Android/releases/download/android-runtime
 开发机可以用 `local.properties` 覆盖（路径按自己的工作区填写）：
 
 ```properties
-maafwRuntimeDir=/path/to/MaaFramework-Android/runtime
+maafwRuntimeDir=../MaaFramework-Android/runtime
 ```
 
 也可以直接指向一个本地或远程 zip：
 
 ```properties
-maafwRuntimeUrl=file:///path/to/maaframework-android-runtime-arm64-v8a.zip
+maafwRuntimeUrl=<URI generated from the local archive>
 ```
+
+本地归档先由相对路径生成正确的文件 URI，再填入 `maafwRuntimeUrl`：
+
+```bash
+python3 -c 'from pathlib import Path; print(Path("../MaaFramework-Android/dist/maaframework-android-runtime-arm64-v8a.zip").resolve().as_uri())'
+```
+
+`maafwRuntimeDir` 的相对路径以应用仓库根目录为基准。JDK 与 SDK 的本机路径仅放在环境变量或未提交的 `local.properties` 中。
+
 
 如果需要重新下载同名 zip：
 

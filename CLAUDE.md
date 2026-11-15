@@ -101,20 +101,16 @@ Default package names include official, Bilibili, OPPO, Huawei, Yingyongbao, VIV
 Known working command:
 
 ```bash
-JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" \
-PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
-ANDROID_SDK_ROOT="$HOME/Library/Android/sdk" \
-ANDROID_HOME="$HOME/Library/Android/sdk" \
+: "${JAVA_HOME:?Set JAVA_HOME to your JDK 21 installation}"
+: "${ANDROID_HOME:?Set ANDROID_HOME to your Android SDK}"
 ./gradlew :app:assembleDebug
 ```
 
 Run framework unit tests through the included submodule:
 
 ```bash
-JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" \
-PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" \
-ANDROID_SDK_ROOT="$HOME/Library/Android/sdk" \
-ANDROID_HOME="$HOME/Library/Android/sdk" \
+: "${JAVA_HOME:?Set JAVA_HOME to your JDK 21 installation}"
+: "${ANDROID_HOME:?Set ANDROID_HOME to your Android SDK}"
 ./gradlew :framework:testDebugUnitTest
 ```
 
@@ -128,20 +124,29 @@ git submodule update --init --recursive
 
 Runtime binaries are not fully tracked in git. `app/build.gradle.kts` resolves a complete Android runtime in this order:
 
-1. `maafwRuntimeDir=/absolute/path/to/MaaFramework-Android/runtime`
+1. `maafwRuntimeDir=../MaaFramework-Android/runtime`
 2. `MaaFramework-Android/runtime` in the submodule
 3. GitHub Release archive from `maafwRuntimeUrl`
 
 Runtime override options live in `local.properties`:
 
 ```properties
-maafwRuntimeDir=/absolute/path/to/MaaFramework-Android/runtime
-maafwRuntimeUrl=file:///absolute/path/to/maaframework-android-runtime-arm64-v8a.zip
+maafwRuntimeDir=../MaaFramework-Android/runtime
+maafwRuntimeUrl=<URI generated from the local archive>
 maafwRuntimeRepo=jh-akt/MaaFramework-Android
 maafwRuntimeTag=android-runtime-v1
 maafwRuntimeAsset=maaframework-android-runtime-arm64-v8a.zip
 maafwRuntimeRefresh=false
 ```
+
+本地归档先由相对路径生成正确的文件 URI，再填入 `maafwRuntimeUrl`：
+
+```bash
+python3 -c 'from pathlib import Path; print(Path("../MaaFramework-Android/dist/maaframework-android-runtime-arm64-v8a.zip").resolve().as_uri())'
+```
+
+`maafwRuntimeDir` 的相对路径以应用仓库根目录为基准。JDK 与 SDK 的本机路径仅放在环境变量或未提交的 `local.properties` 中。
+
 
 Default download target:
 
